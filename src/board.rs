@@ -123,13 +123,10 @@ impl Board {
             return false;
         }
 
-        for (i, l) in self.compute_dir_lengths_from(cp).into_iter().enumerate() {
-            if l==5 {
-                if let Some(next) = cp.try_add(dir(i+4)) {
-                    if self[next] == self[cp] {
-                        continue;
-                    }
-                }
+        let dir_lengths = self.compute_dir_lengths_from(cp);
+        
+        for i in 0..4 {
+            if dir_lengths[i]+dir_lengths[i+4]-1 == 5 {
                 return true;
             }
         }
@@ -142,10 +139,10 @@ impl Board {
 
         for i in 0..8 {
             let dir = dir(i);
-            let mut count = 1;
+            let mut count = self[cp].is_some() as usize;
             let mut cur = cp;
             while let Some(next) = cur.try_add(dir) {
-                if self[next] == self[cp] {
+                if self[next] == self[cur] && (count != 1 || self[cp].is_some()) { 
                     count += 1;
                     cur = next;
                     if count == 6 {
