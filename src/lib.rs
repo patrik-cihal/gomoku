@@ -36,7 +36,7 @@ impl App<Txts> for Gomoku {
 
         let board_clone = board.clone();
         let game_manager_thread = std::thread::spawn(|| {
-            let game_manager = GameManager::new(board_clone, Box::new(actor::Player::new(player_move_receiver)), Box::new(ai::BobAI { depth: 3 }));
+            let game_manager = GameManager::new(board_clone, Box::new(ai::NoobAI {depth: 4}), Box::new(ai::BobAI { depth: 2 }));
             game_manager.run();
         });
 
@@ -46,7 +46,7 @@ impl App<Txts> for Gomoku {
             graphics: Graphics::new(window).await,
             player_move_transmitter,
             mouse_pos: Vec2::ZERO,
-            player_black: true
+            player_black: false
         }
     }
 
