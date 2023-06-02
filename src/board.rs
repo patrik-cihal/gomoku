@@ -1,11 +1,39 @@
-use std::ops::Neg;
+use std::ops::{Neg, Mul};
 
 use strum::Display;
 
 use super::*;
 
-const DIRS: [[isize; 2]; 8] = [[0, 1], [1, 0], [1, 1], [1, -1], [0, -1], [-1, 0], [-1, -1], [-1, 1]];
-pub fn dir(i: usize) -> [isize; 2] {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Dir(isize, isize);
+
+impl Neg for Dir {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self(-self.0, -self.1)
+    }
+}
+
+impl Mul<usize> for Dir {
+    type Output = Dir;
+
+    fn mul(self, rhs: usize) -> Self::Output {
+        Dir(self.0 * rhs as isize, self.1 * rhs as isize)
+    }
+}
+
+impl Mul<Dir> for usize {
+    type Output = Dir;
+
+    fn mul(self, rhs: Dir) -> Self::Output {
+        rhs * self
+    }
+}
+
+// const DIRS: [[isize; 2]; 8] = [[0, 1], [1, 0], [1, 1], [1, -1], [0, -1], [-1, 0], [-1, -1], [-1, 1]];
+const DIRS: [Dir; 8] = [Dir(0, 1), Dir(1, 0), Dir(1, 1), Dir(1, -1), Dir(0, -1), Dir(-1, 0), Dir(-1, -1), Dir(-1, 1)];
+pub fn dir(i: usize) -> Dir {
     DIRS[i%8]
 }
 
@@ -38,7 +66,9 @@ impl Distribution<Stone> for Standard {
 #[derive(Clone, Debug)]
 pub struct Board {
     data: Vec<Vec<Option<Stone>>>,
-    pub turn: Stone
+    pub turn: Stone,
+    pub hash: u64,
+    pub cell_hashes: [[u64; 3]; 15*15]
 }
 
 
@@ -46,9 +76,9 @@ pub struct Board {
 pub struct CellPos(usize, usize);
 
 impl CellPos {
-    pub fn try_add(self, shift: [isize; 2]) -> Option<Self> {
-        let x = self.0 as isize + shift[0];
-        let y = self.1 as isize + shift[1];
+    pub fn try_add(self, shift: Dir) -> Option<Self> {
+        let x = self.0 as isize + shift.0;
+        let y = self.1 as isize + shift.1;
 
         if x < 0 || x >= 15 || y < 0 || y >= 15 {
             None
@@ -78,10 +108,20 @@ impl std::ops::Index<CellPos> for Board {
 }
 
 impl Board {
-    pub fn new(turn: Stone) -> Self {
+    pub fn new() -> Self {
+        let mut cell_hashes = [[0; 3]; 15*15];
+        let mut hash = 0;
+        for i in 0..15*15 {
+            for j in 0..3 {
+                cell_hashes[i][j] = random();
+            }
+            hash ^= cell_hashes[i][0];
+        }
         Self {
             data: vec![vec![None; 15]; 15],
-            turn
+            turn: Stone::White,
+            hash,
+            cell_hashes
         }
     }
     pub fn make_move(&mut self, cp: CellPos) -> bool {
@@ -89,12 +129,21 @@ impl Board {
             return false;
         }
         self.set(cp, Some(self.turn));
+
+        self.hash ^= self.cell_hashes[cp.0*15+cp.1][0];
+        self.hash ^= self.cell_hashes[cp.0*15+cp.1][self.turn as usize+1];
+
         self.turn = -self.turn;
         true
     }
     pub fn unmake_move(&mut self, cp: CellPos) {
-        assert!(self[cp].is_some());
+        assert!(self[cp] == Some(-self.turn));
+
         self.turn = -self.turn;
+
+        self.hash ^= self.cell_hashes[cp.0*15+cp.1][self.turn as usize+1];
+        self.hash ^= self.cell_hashes[cp.0*15+cp.1][0];
+
         self.set(cp, None);
     }
 
@@ -142,7 +191,7 @@ impl Board {
             let mut count = self[cp].is_some() as usize;
             let mut cur = cp;
             while let Some(next) = cur.try_add(dir) {
-                if self[next] == self[cur] && (count != 1 || self[cp].is_some()) { 
+                if self[next] == self[cur] || count == 0 { 
                     count += 1;
                     cur = next;
                     if count == 6 {
@@ -176,5 +225,31 @@ impl Iterator for FreePosIterator<'_> {
             }
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_hash() {
+        let mut board = Board::new();
+        board.make_move(cell(1, 0));
+        board.unmake_move(cell(1, 0));
+        board.make_move(cell(1, 0));
+        board.make_move(cell(2, 5));
+
+        let mut hash = 0;
+
+        for i in 0..15*15 {
+            if let Some(stone) = board[cell(i/15, i%15)] {
+                hash ^= board.cell_hashes[i][stone as usize+1];
+            }
+            else {
+                hash ^= board.cell_hashes[i][0];
+            }
+        }
+
+        assert_eq!(hash, board.hash);
     }
 }

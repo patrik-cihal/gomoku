@@ -24,19 +24,22 @@ struct Gomoku {
     board: Arc<RwLock<Board>>,
     game_manager_thread: std::thread::JoinHandle<()>,
     player_move_transmitter: mpsc::Sender<CellPos>,
-    player_black: bool,
+    player_stone: Option<Stone>,
     mouse_pos: Vec2,
 }
 
 impl App<Txts> for Gomoku {
     async fn new(window: winit::window::Window) -> Self {
-        let board = Arc::new(RwLock::new(Board::new(random::<Stone>())));
+        let board = Arc::new(RwLock::new(Board::new()));
 
         let (player_move_transmitter, player_move_receiver) = mpsc::channel();
 
+        let white_actor = Box::new(actor::Player::new(player_move_receiver));
+        let black_actor = Box::new(ai::BobAI::new(4));
+        
         let board_clone = board.clone();
         let game_manager_thread = std::thread::spawn(|| {
-            let game_manager = GameManager::new(board_clone, Box::new(ai::NoobAI {depth: 4}), Box::new(ai::BobAI { depth: 2 }));
+            let game_manager = GameManager::new(board_clone, black_actor, white_actor);
             game_manager.run();
         });
 
@@ -46,7 +49,7 @@ impl App<Txts> for Gomoku {
             graphics: Graphics::new(window).await,
             player_move_transmitter,
             mouse_pos: Vec2::ZERO,
-            player_black: false
+            player_stone: Some(Stone::White)
         }
     }
 
@@ -68,7 +71,10 @@ impl App<Txts> for Gomoku {
                 false
             },
             WindowEvent::MouseInput { button: winit::event::MouseButton::Left, state, ..} => {
-                if !self.player_black || self.board.read().unwrap().turn != Stone::Black || state != &ElementState::Pressed {
+                let Some(stone) = self.player_stone else {
+                    return false;
+                };
+                if stone != self.board.read().unwrap().turn || state != &ElementState::Pressed {
                     return false;
                 }
 
