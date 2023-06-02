@@ -10,9 +10,10 @@ pub struct John {
     compute: f32
 }
 
+#[derive(Debug)]
 enum BoardState {
     Boring,
-    DefenseOrCounterAttack(Vec<CellPos>),
+    // DefenseOrCounterAttack(Vec<CellPos>), this one is hell of a pain to evaluate let's not do it
     TwoMoveWin(CellPos),
     ForcedDefense(Vec<CellPos>),
     OneMoveLoss(CellPos),
@@ -23,7 +24,7 @@ impl BoardState {
     fn priority(&self) -> u8 {
         match &self {
             Self::Boring => 0,
-            Self::DefenseOrCounterAttack(_) => 1,
+            // Self::DefenseOrCounterAttack(_) => 1,
             Self::TwoMoveWin(_) => 2,
             Self::ForcedDefense(_) => 3,
             Self::OneMoveLoss(_) => 4,
@@ -45,12 +46,12 @@ impl BoardState {
             else if board_state.priority() == result.priority() {
                 match board_state {
                     BoardState::Boring => panic!("You shouldn't set me (no point)."),
-                    BoardState::DefenseOrCounterAttack(mvs) => {
-                        let BoardState::DefenseOrCounterAttack(result_mvs) = &mut result else {
-                            panic!();
-                        };
-                        result_mvs.extend(mvs.into_iter());
-                    },
+                    // BoardState::DefenseOrCounterAttack(mvs) => {
+                    //     let BoardState::DefenseOrCounterAttack(result_mvs) = &mut result else {
+                    //         panic!();
+                    //     };
+                    //     result_mvs.extend(mvs.into_iter());
+                    // },
                     BoardState::ForcedDefense(mvs) => {
                         let BoardState::ForcedDefense(result_mvs) = &mut result else {
                             panic!();
@@ -74,7 +75,6 @@ impl BoardState {
                 let Some(stone) = board[next] else {
                     continue;
                 };
-                let mut count = dir_count[i];
 
                 let mut back = 0;
                 let front = dir_count[i];
@@ -82,7 +82,6 @@ impl BoardState {
                 if let Some(prev) = cp.try_add(-dir(i)) {
                     if let Some(prev_stone) = board[prev] {
                         if prev_stone == stone {
-                            count += dir_count[(i+4)%8];
                             back = dir_count[(i+4)%8];
                         }
                     }
@@ -130,22 +129,29 @@ impl BoardState {
 
                 // ----------- defense or counter attack ------------
 
-                if stone != board.turn && front+back == 3 && !front_bounded && !back_bounded {
-                    let Some(next2) = cp.try_add((front+1)*dir(i)) else {
-                        panic!("Must be some because it is not front_bounded");
-                    };
-                    let Some(prev) = cp.try_add((back+1)*(-dir(i))) else {
-                        panic!("Must exist because it is not back_bounded");
-                    };
-                    assert!(board[prev].is_none());
-                    assert!(board[next2].is_none());
+                // if stone != board.turn && front+back == 3 && !front_bounded && !back_bounded {
+                //     let Some(next2) = cp.try_add((front+1)*dir(i)) else {
+                //         panic!("Must be some because it is not front_bounded");
+                //     };
+                //     let Some(prev) = cp.try_add((back+1)*(-dir(i))) else {
+                //         panic!("Must exist because it is not back_bounded");
+                //     };
+                //     assert!(board[prev].is_none());
+                //     assert!(board[next2].is_none());
 
-                    update_result(BoardState::DefenseOrCounterAttack(vec![next2, prev, cp]));
-                }
+                //     update_result(BoardState::DefenseOrCounterAttack(vec![next2, prev, cp]));
+                // }
 
-                if stone == board.turn && front == 3  && front_bounded && !back_bounded {
+                // if stone == board.turn && front == 3 && front_bounded && !back_bounded {
+                //     let Some(prev) = cp.try_add(-dir(i)) else {
+                //         panic!("Must exist because not backbounded");
+                //     };
+                //     assert!(board[prev].is_none());
                     
-                }
+                //     update_result(BoardState::DefenseOrCounterAttack(vec![cp, prev]));
+                // }
+
+                // if stone == board.turn && front + back == 3
             }
         }
 
@@ -168,7 +174,6 @@ impl John {
             return (bobs_shallow_eval(board), None);
         }
 
-        let mut best_move = None;
 
         let moves_to_explore;
 
@@ -176,10 +181,13 @@ impl John {
             BoardState::OneMoveWin(cp) => return (WIN, Some(cp)),
             BoardState::TwoMoveWin(cp) => return (WIN, Some(cp)),
             BoardState::OneMoveLoss(cp) => return (LOST, Some(cp)),
-            BoardState::ForcedDefense(mvs) => {
-                moves_to_explore = mvs
-            },
-            BoardState::DefenseOrCounterAttack(mvs) => {
+            BoardState::ForcedDefense(mut mvs) => {
+                mvs.sort();
+                mvs.dedup();
+                assert!(!mvs.is_empty());
+                if mvs.len() > 1 {
+                    return (LOST, Some(mvs[0]));
+                }
                 moves_to_explore = mvs
             },
             BoardState::Boring => {
@@ -187,19 +195,30 @@ impl John {
             },
         }
 
+        let mut moves_to_explore = moves_to_explore.into_iter().map(|cp| {
+            board.make_move(cp);
+            let result = (bobs_shallow_eval(board), cp);
+            board.unmake_move(cp);
+            result
+        }).collect::<Vec<_>>();
+        moves_to_explore.sort();
+
+        let mut best_move = Some(moves_to_explore[0].1);
+
         let new_comp_rem = comp_rem/moves_to_explore.len() as f32;
-        for cp in moves_to_explore {
+        for (_, cp) in moves_to_explore {
             board.make_move(cp);
             if board.check_win_from(cp) {
                 return (WIN, Some(cp));
             }
 
-            let eval = self.minimax(board, -beta, -alpha, new_comp_rem);
+            let mut eval = self.minimax(board, -beta, -alpha, new_comp_rem);
+            eval.0 = -eval.0;
             board.unmake_move(cp);
 
             if eval.0 > alpha {
                 alpha = eval.0;
-                best_move = eval.1;
+                best_move = Some(cp);
             }
         }
 
@@ -210,10 +229,15 @@ impl John {
 impl Actor for John {
     fn next(&mut self, board: &Board) -> CellPos {
         let mut board = board.clone();
+        if board.free_positions().count() == 15*15 {
+            return cell(7, 7);
+        }
+
         let result = self.minimax(&mut board, i32::MIN, i32::MAX, self.compute);
 
         println!("{:?}", result);
+        println!("{:?}", BoardState::compute(&board));
 
-        result.1.unwrap_or(cell(7,7))
+        result.1.unwrap()
     }
 }

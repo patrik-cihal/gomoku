@@ -72,7 +72,7 @@ pub struct Board {
 }
 
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 pub struct CellPos(usize, usize);
 
 impl CellPos {

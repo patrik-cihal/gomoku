@@ -34,8 +34,8 @@ impl App<Txts> for Gomoku {
 
         let (player_move_transmitter, player_move_receiver) = mpsc::channel();
 
-        let white_actor = Box::new(actor::Player::new(player_move_receiver));
-        let black_actor = Box::new(ai::BobAI::new(4));
+        let black_actor = Box::new(ai::BobAI::new(3));
+        let white_actor = Box::new(ai::John::new(5000.));
         
         let board_clone = board.clone();
         let game_manager_thread = std::thread::spawn(|| {
@@ -49,7 +49,7 @@ impl App<Txts> for Gomoku {
             graphics: Graphics::new(window).await,
             player_move_transmitter,
             mouse_pos: Vec2::ZERO,
-            player_stone: Some(Stone::White)
+            player_stone: Some(Stone::Black)
         }
     }
 
