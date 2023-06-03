@@ -1,3 +1,5 @@
+use crate::ai::{BoardState, bobs_shallow_eval};
+
 use super::*;
 
 pub struct GameManager {
@@ -25,7 +27,10 @@ impl GameManager {
             drop(board);
             let mut board = self.board.write().unwrap();
             if board.make_move(next_move) {
-                if board.check_win() {
+                println!("TURN: {:?}", board.turn);
+                println!("{:?}", BoardState::compute(&board));
+                println!("{}", bobs_shallow_eval(&board, true));
+                if board.check_win_from(next_move) {
                     println!("{} wins!", -board.turn);
                     break;
                 }

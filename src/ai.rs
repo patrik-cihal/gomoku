@@ -5,7 +5,7 @@ mod john;
 
 pub use bob::BobAI;
 pub use noob::NoobAI;
-pub use john::John;
+pub use john::{John, BoardState};
 
 use std::ops::Neg;
 
@@ -44,9 +44,9 @@ fn valid_move(board: &Board, cp: CellPos) -> bool {
     has_d_neigbor
 }
 
-fn bobs_shallow_eval(board: &Board) -> i32 {
-    let mut counter_f = vec![[0; 2]; 6];
-    let mut counter_e = vec![[0; 2]; 6];
+pub fn bobs_shallow_eval(board: &Board, debug: bool) -> i32 {
+    let mut counter_f = vec![[0; 3]; 6];
+    let mut counter_e = vec![[0; 3]; 6];
 
     // bob is still a noob he will not consider 6s bad 
 
@@ -84,9 +84,6 @@ fn bobs_shallow_eval(board: &Board) -> i32 {
                         } 
                     } 
 
-                    if bounded == 2 {
-                        continue;
-                    }
                     if count >= 5 {
                         continue;
                     }
@@ -95,7 +92,12 @@ fn bobs_shallow_eval(board: &Board) -> i32 {
                         counter_f[count][bounded] += count;
                     }
                     else {
-                        counter_e[count][bounded] += count;
+                        if bounded == 0 && count == 4 {
+                            counter_e[count][1] += count;
+                        }
+                        else {
+                            counter_e[count][bounded] += count;
+                        }
                     }
                 }
                 continue;
@@ -133,6 +135,11 @@ fn bobs_shallow_eval(board: &Board) -> i32 {
         }
     }
 
+    if debug   {
+        println!("{:?}", counter_f);
+        println!("{:?}", counter_e);
+    }
+
     // bob is aware that each count x is being counted x times :)
     if counter_f[5][0] + counter_f[5][1] != 0 {
         return WIN;
@@ -140,16 +147,16 @@ fn bobs_shallow_eval(board: &Board) -> i32 {
     if counter_e[5][0]+counter_e[5][1] != 0 {
         return LOST;
     }
-    if counter_f[4][0]+counter_f[4][1] != 0 {
+    if counter_f[4][0]+counter_f[4][1]+counter_f[4][2] != 0 {
         return WIN;
     }
     if counter_e[4][0] != 0 {
         return LOST;
     }
-    if counter_f[3][0] != 0 && counter_e[4][1] == 0 {
+    if counter_f[3][0] != 0 && counter_e[4][1]+counter_e[4][2] == 0 {
         return WIN;
     }
-    if counter_e[4][1]/4 > 0 && (counter_e[4][1]/4 + counter_e[3][0]/3) > 1 {
+    if (counter_e[4][1]/4 > 1) {
         return LOST;
     }
     if counter_e[3][0]/3 > 1 && (counter_f[3][0]+counter_f[3][1]) == 0  {
@@ -171,6 +178,7 @@ fn bobs_shallow_eval(board: &Board) -> i32 {
         counter_e[2][0] * 5,
         counter_e[2][1] * 1,
         counter_e[4][1] * 70,
+        counter_e[4][2] * 70,
         counter_e[3][0] * 70,
         counter_e[3][1] * 10
     ];

@@ -1,4 +1,5 @@
 #![feature(async_fn_in_trait)]
+#![feature(drain_filter)]
 
 mod actor;
 mod board;
@@ -8,6 +9,7 @@ mod textures;
 
 use std::sync::{Arc, RwLock, mpsc};
 
+use ai::John;
 use ellipsoid::prelude::*;
 
 use ellipsoid::prelude::winit::event::ElementState;
@@ -34,12 +36,12 @@ impl App<Txts> for Gomoku {
 
         let (player_move_transmitter, player_move_receiver) = mpsc::channel();
 
-        let black_actor = Box::new(ai::BobAI::new(3));
-        let white_actor = Box::new(ai::John::new(5000.));
-        
+        let b_actor = Box::new(actor::Player::new(player_move_receiver));
+        let w_actor = Box::new(ai::John::new(400_000., 4., 3));
+
         let board_clone = board.clone();
         let game_manager_thread = std::thread::spawn(|| {
-            let game_manager = GameManager::new(board_clone, black_actor, white_actor);
+            let game_manager = GameManager::new(board_clone, b_actor, w_actor);
             game_manager.run();
         });
 

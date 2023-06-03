@@ -26,7 +26,7 @@ impl BobAI {
         }
         self.computed_positions += 1;
         if cur_depth == self.depth {
-            let result = (bobs_shallow_eval(board), None);
+            let result = (bobs_shallow_eval(board, false), None);
             self.memory.insert(MemoryEntry(cur_depth, board.hash), result);
             return result;
         }
@@ -45,23 +45,27 @@ impl BobAI {
         }
 
         let mut moves = moves.into_iter().map(|cp| {
-            (0, cp)
+            board.make_move(cp);
+            let result = (bobs_shallow_eval(board, false), cp);
+            board.unmake_move(cp);
+            result
         }).collect::<Vec<_>>();
+        moves.sort_unstable_by_key(|x| x.0);
 
-        for new_depth in cur_depth+2..self.depth {
-            let mut local_alpha = alpha;
-            moves = moves.into_iter().map(|(_leval, cp)| {
+        // for new_depth in cur_depth+2..self.depth {
+        //     let mut local_alpha = alpha;
+        //     moves = moves.into_iter().map(|(_leval, cp)| {
 
-                board.make_move(cp);
-                let result = (-self.minmax(new_depth, board, -beta, -local_alpha).0, cp);
-                if result.0 > local_alpha {
-                    local_alpha = result.0;
-                }
-                board.unmake_move(cp);
-                result
-            }).collect::<Vec<_>>();
-            moves.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
-        }
+        //         board.make_move(cp);
+        //         let result = (-self.minmax(new_depth, board, -beta, -local_alpha).0, cp);
+        //         if result.0 > local_alpha {
+        //             local_alpha = result.0;
+        //         }
+        //         board.unmake_move(cp);
+        //         result
+        //     }).collect::<Vec<_>>();
+        //     moves.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+        // }
         for (_, cp) in moves {
             assert!(board.make_move(cp));
 
@@ -79,7 +83,7 @@ impl BobAI {
                 result = (eval.0, Some(cp));
                 if eval.0 > alpha {
                     alpha = eval.0;
-                    if alpha > beta {
+                    if alpha >= beta {
                         return result;
                     }
                 }
