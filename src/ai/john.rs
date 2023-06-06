@@ -4,10 +4,10 @@ use std::collections::HashMap;
 use super::*;
 
 #[derive(Eq, PartialEq, Hash)]
-struct MemoryEntry(u8, u64);
+struct MemoryEntry(u64);
 
 pub struct John {
-    memory: HashMap<MemoryEntry, (i32, Option<CellPos>)>,
+    memory: HashMap<MemoryEntry, i32>,
     compute: f32,
     mp: f32,
     count_iter: i32
@@ -280,7 +280,15 @@ impl John {
             },
             BoardState::Boring => {
                 if comp_rem < 0. {
-                    return (bobs_shallow_eval(board, false), None, Reason::BobsEval);
+                    let bobs_eval = if let Some(result) = self.memory.get(&MemoryEntry(board.hash)) {
+                        *result
+                    }
+                    else {
+                        let result = bobs_shallow_eval(board, false);
+                        self.memory.insert(MemoryEntry(board.hash), result);
+                        result
+                    };
+                    return (bobs_eval, None, Reason::BobsEval);
                 }
                 moves_to_explore = board.free_positions().filter(|cp| valid_move(board, *cp)).collect::<Vec<_>>()
             },
